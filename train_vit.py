@@ -2,6 +2,8 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import tensorflow as tf
 
+from models.vit_hgr import VisionTransformer
+
 
 @tf.function
 def mu_law(x, mu):
@@ -13,9 +15,19 @@ def train():
     print('Training loop.')
 
 
-@hydra.main(config_path='conf')
+@hydra.main(version_base=None, config_path='conf', config_name='config')
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
+    model = VisionTransformer(
+        image_size=cfg.models.image_size,
+        patch_size=cfg.models.patch_size,
+        num_layers=cfg.models.num_layers,
+        num_classes=cfg.models.num_classes,
+        d_model=cfg.models.d_model,
+        num_heads=cfg.models.num_heads,
+        mlp_dim=cfg.models.mlp_dim,
+        channels=cfg.models.channels
+    )
 
 
 if __name__ == '__main__':
