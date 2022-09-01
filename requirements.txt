@@ -1,1 +1,3 @@
 myosuite
+hydra-core
+mediapipe
