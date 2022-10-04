@@ -9,7 +9,5 @@ RUN apt-get install -y git \
 WORKDIR /work
 ADD requirements.txt .
 RUN pip3 install -r requirements.txt
-RUN git clone https://github.com/kodamanbou/sEMG-Net.git
-WORKDIR /work/sEMG-Net
 
 CMD [ "/bin/sh"]
