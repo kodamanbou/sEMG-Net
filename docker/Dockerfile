@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:latest
+FROM tensorflow/tensorflow:latest-gpu
 LABEL maintainer="kodamanbou0424@gmail.com"
 LABEL version="1.0"
 

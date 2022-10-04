@@ -40,4 +40,4 @@ def capture_frame():
 
 
 def capture_semg():
-    print()
+    pass
