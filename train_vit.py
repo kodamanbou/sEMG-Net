@@ -1,6 +1,7 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import tensorflow as tf
+from scipy import signal
 
 from models.vit_hgr import VisionTransformer
 
@@ -8,6 +9,15 @@ from models.vit_hgr import VisionTransformer
 @tf.function
 def mu_law(x, mu):
     return tf.sign(x) * (tf.math.log1p(mu * tf.abs(x)) / tf.math.log1p(mu))
+
+
+@tf.function
+def butter_lowpass(x, lowcut, fs, order=3):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    b, a = signal.butter(order, low, btype='low')
+    y = signal.filtfilt(b, a, x)
+    return y
 
 
 @tf.function
