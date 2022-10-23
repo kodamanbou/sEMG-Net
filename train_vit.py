@@ -1,9 +1,24 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
+import numpy as np
 import tensorflow as tf
 from scipy import signal
+from pathlib import Path
 
 from models.vit_hgr import VisionTransformer
+
+
+def deserialize_example(example_proto):
+    feature_description = {
+        'emg': tf.io.FixedLenFeature([], tf.string),
+        'label': tf.io.FixedLenFeature([], tf.string)
+    }
+
+    parsed_element = tf.io.parse_single_example(example_proto, feature_description)
+    parsed_element['emg'] = tf.io.parse_tensor(parsed_element['emg'], out_type=tf.float32)
+    parsed_element['label'] = tf.io.parse_tensor(parsed_element['label'], out_type=tf.int8)
+
+    return parsed_element
 
 
 @tf.function
@@ -12,10 +27,9 @@ def mu_law(x, mu):
 
 
 @tf.function
-def butter_lowpass(x, lowcut, fs, order=3):
+def butter_lowpass(x, gpass, gstop, fs, order=3):
     nyq = 0.5 * fs
-    low = lowcut / nyq
-    b, a = signal.butter(order, low, btype='low')
+    b, a = signal.butter(order, [gpass/nyq, gstop/nyq], btype='bandstop')
     y = signal.filtfilt(b, a, x)
     return y
 
@@ -28,6 +42,7 @@ def train():
 @hydra.main(version_base=None, config_path='conf', config_name='config')
 def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
+
     model = VisionTransformer(
         image_size=cfg.models.image_size,
         patch_size=cfg.models.patch_size,
@@ -38,6 +53,24 @@ def main(cfg: DictConfig):
         mlp_dim=cfg.models.mlp_dim,
         channels=cfg.models.channels
     )
+
+    model.build(input_shape=(None, 64, 64, 1))
+    model.summary()
+
+    base_path = Path(cfg.models.path)
+    rng = np.random.default_rng()
+    tr_parts = rng.choice(cfg.models.participants, 4, replace=False)
+    print(f'Training participants: {tr_parts}')
+    tr_paths = []
+    for part in tr_parts:
+        for tr_path in base_path.glob(part + '*.tfrecord'):
+            tr_paths.append(tr_path)
+
+    raw_dataset = tf.data.TFRecordDataset(tr_paths)
+    deserialized_dataest = raw_dataset.map(deserialize_example)
+
+    for record in deserialized_dataest.take(1):
+        print(repr(record))
 
 
 if __name__ == '__main__':
