@@ -26,9 +26,12 @@ def tf_serialize_example(emg_feature, label):
 
 
 @tf.function
-def frame_process(data, label):
+def frame_process(data, label, num_classes):
     frames = tf.transpose(tf.signal.frame(data, 64, 32), perm=[1, 0, 2])
+    frames = tf.expand_dims(frames, axis=-1)
     labels = tf.signal.frame(label, 64, 32)
+    labels = labels[:, -1]
+    labels = tf.one_hot(labels, num_classes)
 
     return frames, labels
 
@@ -42,14 +45,14 @@ if __name__ == '__main__':
         emg_flexors = np.reshape(emg_flexors, (64, time_step))
         emg_extensors = np.array(infh['emg_extensors'], dtype=np.float32)
         emg_extensors = np.reshape(emg_extensors, (64, time_step))
-        label = np.array(infh['class'], dtype=np.int8).squeeze(axis=0)
+        label = np.array(infh['class'], dtype=np.int64).squeeze(axis=0)
         infh.close()
 
         tr_x = np.concatenate([emg_flexors, emg_extensors], axis=0)
-        tr_x_splits = np.array_split(tr_x, 8, axis=-1)
-        label_splits = np.array_split(label, 8)
+        tr_x_splits = np.array_split(tr_x, 16, axis=-1)
+        label_splits = np.array_split(label, 16)
         for i, data in enumerate(tr_x_splits):
-            emg_features, labels = frame_process(data, label_splits[i])
+            emg_features, labels = frame_process(data, label_splits[i], 65)
             dataset = tf.data.Dataset.from_tensor_slices((emg_features, labels))
             serialized_dataset = dataset.map(tf_serialize_example, num_parallel_calls=tf.data.AUTOTUNE)
             writer = tf.data.experimental.TFRecordWriter(str(p) + '/' + str(path.stem) + '_' + str(i + 1) + '.tfrecord')

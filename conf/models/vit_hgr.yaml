@@ -1,7 +1,6 @@
 path: '/work/datasets/'
 participants: ['s1', 's2', 's3', 's4', 's6']
 
-mu: 255.0
 image_size: 64
 patch_size: 4
 num_layers: 1

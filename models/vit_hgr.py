@@ -97,7 +97,7 @@ class VisionTransformer(tf.keras.Model):
         dropout=0.1,
     ):
         super(VisionTransformer, self).__init__()
-        num_patches = (image_size // patch_size) ** 2
+        num_patches = (image_size // patch_size) ** 2 * 2
         self.patch_dim = channels * patch_size ** 2
 
         self.patch_size = patch_size

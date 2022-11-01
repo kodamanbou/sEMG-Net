@@ -1,3 +1,4 @@
 myosuite
 hydra-core
-mediapipe
+tqdm
+scikit-learn
