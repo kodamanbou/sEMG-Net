@@ -1,16 +1,15 @@
 path: '/work/datasets/'
-participants: ['s1', 's2', 's3', 's4', 's6']
 
-image_size: 64
+image_size: 8
 patch_size: 4
 num_layers: 1
 num_classes: 65
 d_model: 192
 num_heads: 12
 mlp_dim: 384
-channels: 1
+channels: 128
 
-lr: 0.0001
+lr: 1e-4
 beta1: 0.9
 beta2: 0.999
 weight_decay: 0.001

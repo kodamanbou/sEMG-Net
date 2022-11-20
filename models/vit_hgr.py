@@ -97,7 +97,7 @@ class VisionTransformer(tf.keras.Model):
         dropout=0.1,
     ):
         super(VisionTransformer, self).__init__()
-        num_patches = (image_size // patch_size) ** 2 * 2
+        num_patches = (image_size // patch_size) ** 2
         self.patch_dim = channels * patch_size ** 2
 
         self.patch_size = patch_size
@@ -122,7 +122,6 @@ class VisionTransformer(tf.keras.Model):
                 Dense(num_classes),
             ]
         )
-        self.softmax = tf.keras.layers.Softmax()
 
     def extract_patches(self, images):
         batch_size = tf.shape(images)[0]
@@ -153,5 +152,4 @@ class VisionTransformer(tf.keras.Model):
 
         # First (class token) is used for classification
         x = self.mlp_head(x[:, 0])
-        x = self.softmax(x)
         return x

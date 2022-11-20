@@ -1,6 +1,5 @@
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import KFold
 from scipy import signal
@@ -23,23 +22,7 @@ def deserialize_example(example_proto):
     parsed_element['label'] = tf.io.parse_tensor(
         parsed_element['label'], out_type=tf.float32)
 
-    return parsed_element
-
-
-@tf.function
-def mu_law(input):
-    x = input['emg']
-    mu = 255.0
-    encoded = tf.sign(x) * (tf.math.log1p(mu * tf.abs(x)) / tf.math.log1p(mu))
-    return encoded, input['label']
-
-
-@tf.function
-def butter_lowpass(x, gpass, gstop, fs, order=3):
-    nyq = 0.5 * fs
-    b, a = signal.butter(order, [gpass/nyq, gstop/nyq], btype='bandstop')
-    y = signal.filtfilt(b, a, x)
-    return y
+    return (parsed_element['emg'], parsed_element['label'])
 
 
 @hydra.main(version_base=None, config_path='conf', config_name='config')
@@ -47,12 +30,13 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
 
     base_path = Path(cfg.models.path)
-    participants = np.expand_dims(
-        np.array(cfg.models.participants, dtype=object), axis=-1)
+    repetitions = [i for i in range(1, 6)]
     models = []
     kf = KFold(n_splits=5, shuffle=True, random_state=10)
 
-    for fold, (train_indices, valid_indices) in enumerate(kf.split(participants)):
+    exp_name = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S') + '_1st_5Hz'
+
+    for fold, (train_indices, valid_indices) in enumerate(kf.split(repetitions)):
         print(f'Fold {fold + 1}')
         model = VisionTransformer(
             image_size=cfg.models.image_size,
@@ -67,13 +51,13 @@ def main(cfg: DictConfig):
 
         lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
             cfg.models.lr,
-            decay_steps=200000,
+            decay_steps=100000,
             decay_rate=0.96,
             staircase=True
         )
 
         optimizer = tf.keras.optimizers.experimental.AdamW(
-            learning_rate=lr_schedule,
+            learning_rate=cfg.models.lr,
             weight_decay=cfg.models.weight_decay,
             beta_1=cfg.models.beta1,
             beta_2=cfg.models.beta2
@@ -81,51 +65,44 @@ def main(cfg: DictConfig):
 
         model.compile(
             optimizer=optimizer,
-            loss=tf.keras.losses.CategoricalCrossentropy(),
-            metrics=[tf.keras.metrics.CategoricalAccuracy(),
-                     tf.keras.losses.CategoricalCrossentropy(name='categorical_crossentropy')]
+            loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
+            metrics=[tf.keras.metrics.CategoricalAccuracy(name='accuracy')]
         )
 
         train_paths = []
         for i in train_indices:
-            for tr_path in base_path.glob(str(participants[i]) + '*.tfrecord'):
+            for tr_path in base_path.glob('*_rep' + str(repetitions[i]) + '*.tfrecord'):
                 train_paths.append(tr_path)
 
         train_raw_dataset = tf.data.TFRecordDataset(train_paths)
-        train_raw_dataset = train_raw_dataset.shuffle(64)
+        train_raw_dataset = train_raw_dataset.shuffle(76)
         train_dataset = train_raw_dataset.map(
-            deserialize_example, num_parallel_calls=tf.data.AUTOTUNE)
-        train_dataset = train_dataset.map(
-            mu_law, num_parallel_calls=tf.data.AUTOTUNE).batch(cfg.models.batch_size)
+            deserialize_example, num_parallel_calls=tf.data.AUTOTUNE).batch(cfg.models.batch_size)
 
         val_paths = []
         for i in valid_indices:
-            for val_path in base_path.glob(str(participants[i]) + '*.tfrecord'):
+            for val_path in base_path.glob('*_rep' + str(repetitions[i]) + '*.tfrecord'):
                 val_paths.append(val_path)
 
         val_raw_dataset = tf.data.TFRecordDataset(val_paths)
-        val_raw_dataset = val_raw_dataset.shuffle(16)
+        val_raw_dataset = val_raw_dataset.shuffle(19)
         val_dataset = val_raw_dataset.map(
-            deserialize_example, num_parallel_calls=tf.data.AUTOTUNE)
-        val_dataset = val_dataset.map(
-            mu_law, num_parallel_calls=tf.data.AUTOTUNE).batch(cfg.models.batch_size)
+            deserialize_example, num_parallel_calls=tf.data.AUTOTUNE).batch(cfg.models.batch_size)
 
         # start training
-        log_dir = 'logs/' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S') + \
-            f'-fold{fold + 1}'
+        log_dir = 'logs/' + exp_name + f'-fold{fold + 1}'
         tensorboard_callback = tf.keras.callbacks.TensorBoard(
             log_dir=log_dir, histogram_freq=1)
         early_callback = tf.keras.callbacks.EarlyStopping(
-            monitor='val_categorical_crossentropy', patience=3)
+            monitor='val_loss', patience=5)
         model.fit(train_dataset,
                   epochs=cfg.models.num_epochs,
                   validation_data=val_dataset,
-                  callbacks=[tensorboard_callback, early_callback])
+                  callbacks=[tensorboard_callback,
+                             early_callback])
 
         # save model
-        model.save('outputs/vit_hgr_' +
-                   datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S') +
-                   f'_fold{fold + 1}')
+        model.save('outputs/vit_hgr_' + exp_name + f'_fold{fold + 1}')
 
         models.append(model)
 
