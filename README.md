@@ -1,2 +1,2 @@
 # sEMG-Net
-NeuralNetworks for musculoskeletal modeling.
+NeuralNetworks for hand gesture recognition.
