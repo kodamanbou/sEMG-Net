@@ -29,13 +29,13 @@ def frame_process(data):
 if __name__ == '__main__':
     sr = 2048
     channel = 30
-    infh = h5py.File('/work/datasets/s3.mat', 'r')
+    infh = h5py.File('/work/datasets/hd_semg/s3.mat', 'r')
     emg_flexors = np.array(infh['emg_flexors'], dtype=np.float32)
     time_step = emg_flexors.shape[2]
     emg_flexors = np.reshape(emg_flexors, (64, time_step))
     emg_extensors = np.array(infh['emg_extensors'], dtype=np.float32)
     emg_extensors = np.reshape(emg_extensors, (64, time_step))
-    ext_filtered = np.array(rect_and_lowpass(emg_extensors, fpass=5), dtype=np.float32)
+    ext_filtered = np.array(rect_and_lowpass(emg_extensors, fpass=1), dtype=np.float32)
     labels = np.array(infh['class'], dtype=np.int64).squeeze(axis=0)
     repetition = np.array(infh['repetition'], dtype=np.int64).squeeze(axis=0)
     infh.close()
