@@ -1,0 +1,5 @@
+path: '/work/datasets/ninapro/'
+
+num_channels: [24, 32, 64]
+num_splits: [3, 4, 4]
+num_heads: [4, 4]

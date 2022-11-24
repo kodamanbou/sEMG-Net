@@ -54,7 +54,7 @@ def frame_process(data, label, num_classes):
 
 
 if __name__ == '__main__':
-    p = Path('/work/datasets/')
+    p = Path('/work/datasets/hd_semg')
     for path in p.glob('*.mat'):
         infh = h5py.File(path, 'r')
         emg_flexors = np.array(infh['emg_flexors'], dtype=np.float32)

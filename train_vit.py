@@ -2,7 +2,6 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import tensorflow as tf
 from sklearn.model_selection import KFold
-from scipy import signal
 from pathlib import Path
 import datetime
 

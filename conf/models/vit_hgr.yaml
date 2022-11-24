@@ -1,4 +1,4 @@
-path: '/work/datasets/'
+path: '/work/datasets/hd_semg/'
 
 image_size: 8
 patch_size: 4
