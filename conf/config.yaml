@@ -1,2 +1,2 @@
 defaults:
-  - models: vit_hgr
+  - model: vit_hgr
