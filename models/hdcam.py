@@ -1,9 +1,10 @@
 import tensorflow as tf
 import numpy as np
+from typing import List
 
 
 class HDConvEncoder(tf.keras.layers.Layer):
-    def __init__(self, num_splits):
+    def __init__(self, num_splits: int):
         super(HDConvEncoder, self).__init__()
         self.num_splits = num_splits
         self.dwconvs = [
@@ -29,7 +30,7 @@ class HDConvEncoder(tf.keras.layers.Layer):
 
 
 class MultiHeadSelfAttention(tf.keras.layers.Layer):
-    def __init__(self, embed_dim, num_heads=8):
+    def __init__(self, embed_dim: int, num_heads: int=8):
         super(MultiHeadSelfAttention, self).__init__()
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -76,7 +77,7 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
 
 
 class MHSAttentionEncoder(tf.keras.layers.Layer):
-    def __init__(self, num_channels, num_heads):
+    def __init__(self, num_channels: int, num_heads: int):
         super(MHSAttentionEncoder, self).__init__()
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -96,10 +97,10 @@ class MHSAttentionEncoder(tf.keras.layers.Layer):
 class HDCAM(tf.keras.Model):
     def __init__(
         self,
-        num_classes,
-        num_channels=[24, 32, 64],
-        num_splits=[3, 4, 4],
-        num_heads=[4, 4],
+        num_classes: int,
+        num_channels: List[int]=[24, 32, 64],
+        num_splits: List[int]=[3, 4, 4],
+        num_heads: List[int]=[4, 4],
     ):
         super(HDCAM, self).__init__()
         
@@ -124,7 +125,7 @@ class HDCAM(tf.keras.Model):
             HDConvEncoder(num_splits[2])
             for _ in range(4)
         ]
-        self.mhs_enc2 = MHSAttentionEncoder(num_channels[2], num_heads=[1])
+        self.mhs_enc2 = MHSAttentionEncoder(num_channels[2], num_heads[1])
 
         # final stage
         self.avgpool = tf.keras.layers.GlobalAveragePooling1D()
