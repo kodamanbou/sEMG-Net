@@ -8,22 +8,22 @@ class HDConvEncoder(tf.keras.layers.Layer):
         super(HDConvEncoder, self).__init__()
         self.num_splits = num_splits
         self.dwconvs = [
-            tf.keras.layers.DepthwiseConv1D(kernel_size=3, padding='same')
+            tf.keras.layers.DepthwiseConv1D(kernel_size=3, padding='same', data_format='channels_first')
             for _ in range(num_splits)
         ]
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.pwconv = tf.keras.layers.DepthwiseConv1D(
-            kernel_size=1, activation=tf.keras.activations.gelu)
+            kernel_size=1, data_format='channels_first', activation=tf.keras.activations.gelu)
 
     def call(self, inputs, *args, **kwargs):
-        x = tf.split(inputs, num_or_size_splits=self.num_splits, axis=-1)
+        x = tf.split(inputs, num_or_size_splits=self.num_splits, axis=1)
         y = []
         y.append(self.dwconvs[0](x[0]))
 
         for x_i, layer in zip(x[1:], self.dwconvs[1:]):
             y.append(layer(x_i + y[-1]))
 
-        y = tf.concat(y, axis=-1)
+        y = tf.concat(y, axis=1)
         y = self.layernorm(y)
         y = self.pwconv(y)
         return inputs + y
@@ -83,7 +83,7 @@ class MHSAttentionEncoder(tf.keras.layers.Layer):
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.att = MultiHeadSelfAttention(num_channels, num_heads)
         self.pwconv = tf.keras.layers.DepthwiseConv1D(
-            kernel_size=1, activation=tf.keras.activations.gelu)
+            kernel_size=1, data_format='channels_first', activation=tf.keras.activations.gelu)
 
     def call(self, inputs, *args, **kwargs):
         x = inputs
@@ -105,33 +105,33 @@ class HDCAM(tf.keras.Model):
         super(HDCAM, self).__init__()
         
         # stage 1
-        self.stem = tf.keras.layers.Conv1D(num_channels[0], kernel_size=10, strides=10)
+        self.stem = tf.keras.layers.Conv1D(num_channels[0], kernel_size=10, strides=10, data_format='channels_first')
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.hdconv1 = HDConvEncoder(num_splits[0])
         
         # stage 2
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.downsample1 = tf.keras.layers.Conv1D(num_channels[1], kernel_size=2, strides=2)
+        self.downsample1 = tf.keras.layers.Conv1D(num_channels[1], kernel_size=2, strides=2, data_format='channels_first')
         self.hdconv2 = [
             HDConvEncoder(num_splits[1])
             for _ in range(2)
         ]
-        self.mhs_enc1 = MHSAttentionEncoder(num_channels[1], num_heads[0])
+        self.mhs_enc1 = MHSAttentionEncoder(32, num_heads[0])
 
         #stage 3
         self.layernorm3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.downsample2 = tf.keras.layers.Conv1D(num_channels[2], kernel_size=2, strides=2)
+        self.downsample2 = tf.keras.layers.Conv1D(num_channels[2], kernel_size=2, strides=2, data_format='channels_first')
         self.hdconv3 = [
             HDConvEncoder(num_splits[2])
             for _ in range(4)
         ]
-        self.mhs_enc2 = MHSAttentionEncoder(num_channels[2], num_heads[1])
+        self.mhs_enc2 = MHSAttentionEncoder(16, num_heads[1])
 
         # final stage
         self.avgpool = tf.keras.layers.GlobalAveragePooling1D()
         self.dense = tf.keras.layers.Dense(num_classes)
 
-    def call(self, inputs, training=None, mask=None):
+    def call(self, inputs, training):
         x = self.stem(inputs)
         x = self.layernorm1(x)
         x = self.hdconv1(x)
@@ -145,7 +145,7 @@ class HDCAM(tf.keras.Model):
         x = self.mhs_enc1(x)
 
         x = self.layernorm3(x)
-        self.downsample2(x)
+        x = self.downsample2(x)
 
         for layer in self.hdconv3:
             x = layer(x)

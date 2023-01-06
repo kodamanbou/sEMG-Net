@@ -22,14 +22,14 @@ def mu_law(x):
 
 
 if __name__ == '__main__':
-    p = Path('/work/datasets/ninapro/S1_E2_A1.mat')
-    f = scipy.io.loadmat(p)
-    emg = np.transpose(f['emg'])
-    label = np.reshape(f['stimulus'], [np.shape(f['stimulus'])[0]])
-    rep = np.reshape(f['repetition'], [np.shape(f['repetition'])[0]])
-    print(f'{label.dtype}')
-    
-    for channel in range(12):
+    p = Path('/work/datasets/ninapro/')
+    for path in p.glob('*.mat'):
+        f = scipy.io.loadmat(path)
+        emg = np.transpose(f['emg'])
+        label = np.reshape(f['stimulus'], [np.shape(f['stimulus'])[0]])
+        rep = np.reshape(f['repetition'], [np.shape(f['repetition'])[0]])
+        channel = 0
+
         emgs = emg[channel, 2048*50:2048*110]
         reps = rep[2048*50:2048*110]
         labels = label[2048*50:2048*110]
@@ -65,7 +65,7 @@ if __name__ == '__main__':
         ax5 = fig.add_subplot(325, xlabel='time[s]')
         time_axis = np.linspace(0, reps.shape[0] / 2048, reps.shape[0])
         ax5.set_xlabel('time[s]')
-        ax5.plot(time_axis, normalized, label=f'mu_law emg[{channel + 1}]')
+        # ax5.plot(time_axis, normalized, label=f'mu_law emg[{channel + 1}]')
         ax5.plot(time_axis, reps, label='repetition')
         ax5.plot(time_axis, labels, label='stimulus')
         ax5.legend()
@@ -78,4 +78,5 @@ if __name__ == '__main__':
         ax6.set_ylabel('Frequency Domain (Spectrum) Magnitude')
         
         fig.tight_layout()
-        fig.savefig(f'ninapro_{channel + 1}.png')
+        fig.savefig(f'{path.stem}.png')
+        plt.close()
