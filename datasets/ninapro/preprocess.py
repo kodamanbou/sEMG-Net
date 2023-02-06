@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 import scipy.io
 from scipy import signal
-import matplotlib.pyplot as plt
 from pathlib import Path
 
 
@@ -29,10 +28,10 @@ def tf_serialize_example(emg_feature, label):
 
 def rect_and_lowpass(x, fpass):
     sr = 2048
-    y = np.abs(x - np.mean(x, axis=-1))
+    y = np.abs(x - np.reshape(np.mean(x, axis=-1), (12, 1)))
     low_sos = signal.butter(1, fpass, btype='low', fs=sr, output='sos')
     filtered = signal.sosfilt(low_sos, y)
-    return filtered
+    return np.array(filtered, dtype=np.float32)
 
 
 @tf.function
@@ -65,7 +64,7 @@ if __name__ == '__main__':
                 rep_xs = []
                 rep_ys = []
                 for j in range(1, 18):
-                    rep_x, rep_y = frame_process(emg[:, (rep == i) & (labels == j)], j - 1, 17)
+                    rep_x, rep_y = frame_process(rect_and_lowpass(emg[:, (rep == i) & (labels == j)], fpass=1), j - 1, 17)
                     rep_xs.append(rep_x)
                     rep_ys.append(rep_y)
                     

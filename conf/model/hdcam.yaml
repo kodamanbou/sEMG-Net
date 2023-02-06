@@ -8,4 +8,4 @@ window_size: 300
 
 lr: 1e-4
 batch_size: 32
-num_epochs: 30
+num_epochs: 100

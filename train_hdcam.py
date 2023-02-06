@@ -15,16 +15,15 @@ def train_step(model, loss_fn, optimizer, tr_loss, tr_acc, tr_x, tr_y):
 
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
+    tr_loss.update_state(tr_y, y_pred)
+    tr_acc.update_state(tr_y, y_pred)
+    return loss
 
-    tr_loss(loss)
-    tr_acc(tr_y, y_pred)
 
-
-def test_step(model, loss_fn, val_loss, val_acc, val_x, val_y):
+def test_step(model, val_loss, val_acc, val_x, val_y):
     y_pred = model(val_x, training=False)
-    loss = loss_fn(val_y, y_pred)
-    val_loss(loss)
-    val_acc(val_y, y_pred)
+    val_loss.update_state(val_y, y_pred)
+    val_acc.update_state(val_y, y_pred)
 
 
 def deserialize_example(example_proto):
@@ -48,7 +47,7 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
 
     base_path = Path(cfg.model.path)
-    exp_name = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
+    exp_name = 'hdcam_mhs_drp0.4_' + datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S')
     repetitions = [i for i in range(1, 7)]
     models = []
     kf = KFold(n_splits=6, shuffle=True, random_state=10)
@@ -56,10 +55,11 @@ def main(cfg: DictConfig):
     for fold, (train_indices, valid_indices) in enumerate(kf.split(repetitions)):
         print(f'Fold {fold + 1}')
         model = HDCAM(
-            cfg.model.num_classes,
-            cfg.model.num_channels,
-            cfg.model.num_splits,
-            cfg.model.num_heads
+            num_classes=cfg.model.num_classes,
+            num_channels=cfg.model.num_channels,
+            num_splits=cfg.model.num_splits,
+            num_heads=cfg.model.num_heads,
+            dropout=0.4
         )
 
         lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -80,10 +80,10 @@ def main(cfg: DictConfig):
         # )
 
         loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
-        train_loss = tf.keras.metrics.Mean('train_loss', dtype=tf.float32)
-        train_acc = tf.keras.metrics.CategoricalAccuracy(name='train_accuracy')
-        val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
-        val_acc = tf.keras.metrics.CategoricalAccuracy(name='val_accuracy')
+        train_loss = tf.keras.metrics.CategoricalCrossentropy()
+        train_acc = tf.keras.metrics.CategoricalAccuracy()
+        val_loss = tf.keras.metrics.CategoricalCrossentropy()
+        val_acc = tf.keras.metrics.CategoricalAccuracy()
 
         train_paths = []
         for i in train_indices:
@@ -125,6 +125,11 @@ def main(cfg: DictConfig):
         train_summary_writer = tf.summary.create_file_writer(train_log_dir)
         test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
+        # training loop
+        patience = 5
+        wait = 0
+        best = 0
+
         for epoch in range(cfg.model.num_epochs):
             for (tr_x, tr_y) in train_dataset:
                 train_step(model, loss_fn, optimizer,
@@ -132,22 +137,38 @@ def main(cfg: DictConfig):
             with train_summary_writer.as_default():
                 tf.summary.scalar('loss', train_loss.result(), step=epoch)
                 tf.summary.scalar('accuracy', train_acc.result(), step=epoch)
+            train_acc_res = train_acc.result()
+            train_loss_res = train_loss.result()
+            train_acc.reset_states()
+            train_loss.reset_states()
 
             for (val_x, val_y) in val_dataset:
-                test_step(model, loss_fn, val_loss, val_acc, val_x, val_y)
+                test_step(model, val_loss, val_acc, val_x, val_y)
             with test_summary_writer.as_default():
                 tf.summary.scalar('loss', val_loss.result(), step=epoch)
                 tf.summary.scalar('accuracy', val_acc.result(), step=epoch)
+            val_acc_res = val_acc.result()
+            val_loss_res = val_loss.result()
+            val_acc.reset_states()
+            val_loss.reset_states()
 
             template = 'Epoch {}, Loss: {}, Accuracy: {}, Test Loss: {}, Test Accuracy: {}'
-            print(template.format(epoch+1,
-                                  train_loss.result(),
-                                  train_acc.result() * 100,
-                                  val_loss.result(),
-                                  val_acc.result() * 100))
+            print(template.format(epoch + 1,
+                                  train_loss_res,
+                                  train_acc_res * 100,
+                                  val_loss_res,
+                                  val_acc_res * 100))
+
+            wait += 1
+            if val_acc_res > best:
+                best = val_acc_res
+                wait = 0
+            if wait >= patience:
+                print(f'Early stopping at epoch {epoch + 1}')
+                break
 
         # save model
-        model.save('outputs/hdcam_' + exp_name + f'_fold{fold + 1}')
+        model.save('outputs/' + exp_name + f'_fold{fold + 1}')
 
         models.append(model)
 
